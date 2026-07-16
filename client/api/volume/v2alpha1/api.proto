@@ -89,6 +89,10 @@ message IsVolumeFormattedResponse {
 message FormatVolumeRequest {
     // Volume device ID of the volume to format.
     string volume_id = 1;
+
+    // Filesystem to create. Supported values are ntfs and refs. Empty keeps
+    // the historical NTFS default.
+    string filesystem = 2;
 }
 
 message FormatVolumeResponse {

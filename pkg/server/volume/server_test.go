@@ -12,6 +12,7 @@ import (
 
 type fakeVolumeAPI struct {
 	diskVolMap map[uint32][]string
+	filesystem string
 }
 
 var _ volume.API = &fakeVolumeAPI{}
@@ -43,7 +44,32 @@ func (volumeAPI *fakeVolumeAPI) IsVolumeFormatted(volumeID string) (bool, error)
 }
 
 func (volumeAPI *fakeVolumeAPI) FormatVolume(volumeID string) error {
+	volumeAPI.filesystem = "ntfs"
 	return nil
+}
+
+func (volumeAPI *fakeVolumeAPI) FormatVolumeWithFilesystem(volumeID, filesystem string) error {
+	volumeAPI.filesystem = filesystem
+	return nil
+}
+
+func TestFormatVolumeFilesystem(t *testing.T) {
+	version, err := apiversion.NewVersion("v2alpha1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := &fakeVolumeAPI{diskVolMap: map[uint32][]string{}}
+	server, err := NewServer(api)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = server.FormatVolume(context.Background(), &internal.FormatVolumeRequest{VolumeId: "volume", Filesystem: "refs"}, version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if api.filesystem != "refs" {
+		t.Fatalf("filesystem = %q, want refs", api.filesystem)
+	}
 }
 
 func (volumeAPI *fakeVolumeAPI) ResizeVolume(volumeID string, size int64) error {

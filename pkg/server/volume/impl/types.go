@@ -31,7 +31,8 @@ type IsVolumeFormattedResponse struct {
 }
 
 type FormatVolumeRequest struct {
-	VolumeId string
+	VolumeId   string
+	Filesystem string
 }
 
 type FormatVolumeResponse struct {

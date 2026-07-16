@@ -11,6 +11,7 @@ import (
 
 func autoConvert_v2alpha1_FormatVolumeRequest_To_impl_FormatVolumeRequest(in *v2alpha1.FormatVolumeRequest, out *impl.FormatVolumeRequest) error {
 	out.VolumeId = in.VolumeId
+	out.Filesystem = in.Filesystem
 	return nil
 }
 
@@ -21,6 +22,7 @@ func Convert_v2alpha1_FormatVolumeRequest_To_impl_FormatVolumeRequest(in *v2alph
 
 func autoConvert_impl_FormatVolumeRequest_To_v2alpha1_FormatVolumeRequest(in *impl.FormatVolumeRequest, out *v2alpha1.FormatVolumeRequest) error {
 	out.VolumeId = in.VolumeId
+	out.Filesystem = in.Filesystem
 	return nil
 }
 

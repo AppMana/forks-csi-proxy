@@ -98,7 +98,21 @@ func (VolumeAPI) ListVolumesOnDisk(diskNumber uint32, partitionNumber uint32) (v
 
 // FormatVolume - Formats a volume with the NTFS format.
 func (VolumeAPI) FormatVolume(volumeID string) (err error) {
-	cmd := fmt.Sprintf("Get-Volume -UniqueId \"%s\" | Format-Volume -FileSystem ntfs -Confirm:$false", volumeID)
+	return VolumeAPI{}.FormatVolumeWithFilesystem(volumeID, "ntfs")
+}
+
+// FormatVolumeWithFilesystem formats a volume with NTFS or ReFS. It is exposed
+// through the additive v2alpha1 request field; older API versions retain their
+// NTFS-only behaviour.
+func (VolumeAPI) FormatVolumeWithFilesystem(volumeID, filesystem string) (err error) {
+	filesystem = strings.ToLower(strings.TrimSpace(filesystem))
+	if filesystem == "" {
+		filesystem = "ntfs"
+	}
+	if filesystem != "ntfs" && filesystem != "refs" {
+		return fmt.Errorf("unsupported Windows filesystem %q", filesystem)
+	}
+	cmd := fmt.Sprintf("Get-Volume -UniqueId \"%s\" | Format-Volume -FileSystem %s -Confirm:$false", volumeID, filesystem)
 	out, err := utils.RunPowershellCmd(cmd)
 	if err != nil {
 		return fmt.Errorf("error formatting volume. cmd: %s, output: %s, error: %v", cmd, string(out), err)

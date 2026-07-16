@@ -122,7 +122,18 @@ func (s *Server) FormatVolume(context context.Context, request *internal.FormatV
 		return response, fmt.Errorf("volume id empty")
 	}
 
-	err := s.hostAPI.FormatVolume(volumeID)
+	var err error
+	if request.Filesystem != "" {
+		formatter, ok := s.hostAPI.(interface {
+			FormatVolumeWithFilesystem(volumeID, filesystem string) error
+		})
+		if !ok {
+			return response, fmt.Errorf("requested filesystem %q is not supported by this host API", request.Filesystem)
+		}
+		err = formatter.FormatVolumeWithFilesystem(volumeID, request.Filesystem)
+	} else {
+		err = s.hostAPI.FormatVolume(volumeID)
+	}
 	if err != nil {
 		klog.Errorf("failed FormatVolume %v", err)
 		return response, err
