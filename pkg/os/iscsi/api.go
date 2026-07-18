@@ -1,6 +1,7 @@
 package iscsi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -14,13 +15,13 @@ import (
 
 type APIImplementor struct{}
 
-var runPowershellCmd = utils.RunPowershellCmd
+var runPowershellCmd = utils.RunPowershellCmdContext
 
 func New() APIImplementor {
 	return APIImplementor{}
 }
 
-func (APIImplementor) AddTargetPortal(portal *TargetPortal) error {
+func (APIImplementor) AddTargetPortal(ctx context.Context, portal *TargetPortal) error {
 	cmdLine := fmt.Sprintf(
 		`$portal = Get-IscsiTargetPortal -TargetPortalAddress ${Env:iscsi_tp_address} ` +
 			`-TargetPortalPortNumber ${Env:iscsi_tp_port} -ErrorAction SilentlyContinue; ` +
@@ -28,7 +29,7 @@ func (APIImplementor) AddTargetPortal(portal *TargetPortal) error {
 			`New-IscsiTargetPortal -TargetPortalAddress ${Env:iscsi_tp_address} ` +
 			`-TargetPortalPortNumber ${Env:iscsi_tp_port} | Out-Null ` +
 			`} else { $portal | Update-IscsiTargetPortal | Out-Null }`)
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port))
 	if err != nil {
 		return fmt.Errorf("error adding target portal. cmd %s, output: %s, err: %v", cmdLine, string(out), err)
@@ -37,14 +38,14 @@ func (APIImplementor) AddTargetPortal(portal *TargetPortal) error {
 	return nil
 }
 
-func (APIImplementor) DiscoverTargetPortal(portal *TargetPortal) ([]string, error) {
+func (APIImplementor) DiscoverTargetPortal(ctx context.Context, portal *TargetPortal) ([]string, error) {
 	// ConvertTo-Json is not part of the pipeline because powershell converts an
 	// array with one element to a single element
 	cmdLine := fmt.Sprintf(
 		`ConvertTo-Json -InputObject @(Get-IscsiTargetPortal -TargetPortalAddress ` +
 			`${Env:iscsi_tp_address} -TargetPortalPortNumber ${Env:iscsi_tp_port} | ` +
 			`Get-IscsiTarget | Select-Object -ExpandProperty NodeAddress)`)
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port))
 	if err != nil {
 		return nil, fmt.Errorf("error discovering target portal. cmd: %s, output: %s, err: %w", cmdLine, string(out), err)
@@ -59,12 +60,12 @@ func (APIImplementor) DiscoverTargetPortal(portal *TargetPortal) ([]string, erro
 	return iqns, nil
 }
 
-func (APIImplementor) ListTargetPortals() ([]TargetPortal, error) {
+func (APIImplementor) ListTargetPortals(ctx context.Context) ([]TargetPortal, error) {
 	cmdLine := fmt.Sprintf(
 		`ConvertTo-Json -InputObject @(Get-IscsiTargetPortal | ` +
 			`Select-Object TargetPortalAddress, TargetPortalPortNumber)`)
 
-	out, err := utils.RunPowershellCmd(cmdLine)
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine)
 	if err != nil {
 		return nil, fmt.Errorf("error listing target portals. cmd %s, output: %s, err: %w", cmdLine, string(out), err)
 	}
@@ -78,13 +79,13 @@ func (APIImplementor) ListTargetPortals() ([]TargetPortal, error) {
 	return portals, nil
 }
 
-func (APIImplementor) RemoveTargetPortal(portal *TargetPortal) error {
+func (APIImplementor) RemoveTargetPortal(ctx context.Context, portal *TargetPortal) error {
 	cmdLine := fmt.Sprintf(
 		`Get-IscsiTargetPortal -TargetPortalAddress ${Env:iscsi_tp_address} ` +
 			`-TargetPortalPortNumber ${Env:iscsi_tp_port} | Remove-IscsiTargetPortal ` +
 			`-Confirm:$false`)
 
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port))
 	if err != nil {
 		return fmt.Errorf("error removing target portal. cmd %s, output: %s, err: %w", cmdLine, string(out), err)
@@ -93,7 +94,7 @@ func (APIImplementor) RemoveTargetPortal(portal *TargetPortal) error {
 	return nil
 }
 
-func (APIImplementor) ConnectTarget(portal *TargetPortal, iqn string,
+func (APIImplementor) ConnectTarget(ctx context.Context, portal *TargetPortal, iqn string,
 	authType string, chapUser string, chapSecret string) error {
 	// Not using InputObject as Connect-IscsiTarget's InputObject does not work.
 	// This is due to being a static WMI method together with a bug in the
@@ -119,7 +120,7 @@ func (APIImplementor) ConnectTarget(portal *TargetPortal, iqn string,
 	}
 	cmdLine += ` | Out-Null }`
 
-	out, err := runPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := runPowershellCmd(ctx, cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port),
 		fmt.Sprintf("iscsi_target_iqn=%s", iqn),
 		fmt.Sprintf("iscsi_auth_type=%s", authType),
@@ -132,7 +133,7 @@ func (APIImplementor) ConnectTarget(portal *TargetPortal, iqn string,
 	return nil
 }
 
-func (APIImplementor) DisconnectTarget(portal *TargetPortal, iqn string) error {
+func (APIImplementor) DisconnectTarget(ctx context.Context, portal *TargetPortal, iqn string) error {
 	// Using InputObject instead of pipe to verify input is not empty
 	cmdLine := fmt.Sprintf(
 		`Disconnect-IscsiTarget -InputObject (Get-IscsiTargetPortal ` +
@@ -140,7 +141,7 @@ func (APIImplementor) DisconnectTarget(portal *TargetPortal, iqn string) error {
 			` | Get-IscsiTarget | Where-Object { $_.NodeAddress -eq ${Env:iscsi_target_iqn} }) ` +
 			`-Confirm:$false`)
 
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port),
 		fmt.Sprintf("iscsi_target_iqn=%s", iqn))
 	if err != nil {
@@ -150,7 +151,7 @@ func (APIImplementor) DisconnectTarget(portal *TargetPortal, iqn string) error {
 	return nil
 }
 
-func (APIImplementor) GetTargetDisks(portal *TargetPortal, iqn string) ([]string, error) {
+func (APIImplementor) GetTargetDisks(ctx context.Context, portal *TargetPortal, iqn string) ([]string, error) {
 	// Converting DiskNumber to string for compatibility with disk api group
 	// Not using pipeline in order to validate that items are non-empty
 	cmdLine := fmt.Sprintf(
@@ -161,7 +162,7 @@ func (APIImplementor) GetTargetDisks(portal *TargetPortal, iqn string) ([]string
 			`$ids = $c | Get-Disk | Select -ExpandProperty Number | Out-String -Stream; ` +
 			`ConvertTo-Json -InputObject @($ids)`)
 
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port),
 		fmt.Sprintf("iscsi_target_iqn=%s", iqn))
 	if err != nil {
@@ -177,9 +178,9 @@ func (APIImplementor) GetTargetDisks(portal *TargetPortal, iqn string) ([]string
 	return ids, nil
 }
 
-func (APIImplementor) SetMutualChapSecret(mutualChapSecret string) error {
+func (APIImplementor) SetMutualChapSecret(ctx context.Context, mutualChapSecret string) error {
 	cmdLine := `Set-IscsiChapSecret -ChapSecret ${Env:iscsi_mutual_chap_secret}`
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_mutual_chap_secret=%s", mutualChapSecret))
+	out, err := utils.RunPowershellCmdContext(ctx, cmdLine, fmt.Sprintf("iscsi_mutual_chap_secret=%s", mutualChapSecret))
 	if err != nil {
 		return fmt.Errorf("error setting mutual chap secret. cmd %s,"+
 			" output: %s, err: %v", cmdLine, string(out), err)

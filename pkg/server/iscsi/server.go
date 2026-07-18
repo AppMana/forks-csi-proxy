@@ -17,15 +17,14 @@ type Server struct {
 }
 
 type API interface {
-	AddTargetPortal(portal *iscsi.TargetPortal) error
-	DiscoverTargetPortal(portal *iscsi.TargetPortal) ([]string, error)
-	ListTargetPortals() ([]iscsi.TargetPortal, error)
-	RemoveTargetPortal(portal *iscsi.TargetPortal) error
-	ConnectTarget(portal *iscsi.TargetPortal, iqn string, authType string,
-		chapUser string, chapSecret string) error
-	DisconnectTarget(portal *iscsi.TargetPortal, iqn string) error
-	GetTargetDisks(portal *iscsi.TargetPortal, iqn string) ([]string, error)
-	SetMutualChapSecret(mutualChapSecret string) error
+	AddTargetPortal(context.Context, *iscsi.TargetPortal) error
+	DiscoverTargetPortal(context.Context, *iscsi.TargetPortal) ([]string, error)
+	ListTargetPortals(context.Context) ([]iscsi.TargetPortal, error)
+	RemoveTargetPortal(context.Context, *iscsi.TargetPortal) error
+	ConnectTarget(ctx context.Context, portal *iscsi.TargetPortal, iqn, authType, chapUser, chapSecret string) error
+	DisconnectTarget(context.Context, *iscsi.TargetPortal, string) error
+	GetTargetDisks(context.Context, *iscsi.TargetPortal, string) ([]string, error)
+	SetMutualChapSecret(context.Context, string) error
 }
 
 func NewServer(hostAPI API) (*Server, error) {
@@ -45,7 +44,7 @@ func (s *Server) requestTPtoAPITP(portal *internal.TargetPortal) *iscsi.TargetPo
 func (s *Server) AddTargetPortal(context context.Context, request *internal.AddTargetPortalRequest, version apiversion.Version) (*internal.AddTargetPortalResponse, error) {
 	klog.V(4).Infof("calling AddTargetPortal with portal %s:%d", request.TargetPortal.TargetAddress, request.TargetPortal.TargetPort)
 	response := &internal.AddTargetPortalResponse{}
-	err := s.hostAPI.AddTargetPortal(s.requestTPtoAPITP(request.TargetPortal))
+	err := s.hostAPI.AddTargetPortal(context, s.requestTPtoAPITP(request.TargetPortal))
 	if err != nil {
 		klog.Errorf("failed AddTargetPortal %v", err)
 		return response, err
@@ -79,7 +78,7 @@ func (s *Server) ConnectTarget(context context.Context, req *internal.ConnectTar
 		return response, err
 	}
 
-	err = s.hostAPI.ConnectTarget(s.requestTPtoAPITP(req.TargetPortal), req.Iqn,
+	err = s.hostAPI.ConnectTarget(context, s.requestTPtoAPITP(req.TargetPortal), req.Iqn,
 		authType, req.ChapUsername, req.ChapSecret)
 	if err != nil {
 		klog.Errorf("failed ConnectTarget %v", err)
@@ -94,7 +93,7 @@ func (s *Server) DisconnectTarget(context context.Context, request *internal.Dis
 		request.TargetPortal.TargetAddress, request.TargetPortal.TargetPort, request.Iqn)
 
 	response := &internal.DisconnectTargetResponse{}
-	err := s.hostAPI.DisconnectTarget(s.requestTPtoAPITP(request.TargetPortal), request.Iqn)
+	err := s.hostAPI.DisconnectTarget(context, s.requestTPtoAPITP(request.TargetPortal), request.Iqn)
 	if err != nil {
 		klog.Errorf("failed DisconnectTarget %v", err)
 		return response, err
@@ -106,7 +105,7 @@ func (s *Server) DisconnectTarget(context context.Context, request *internal.Dis
 func (s *Server) DiscoverTargetPortal(context context.Context, request *internal.DiscoverTargetPortalRequest, version apiversion.Version) (*internal.DiscoverTargetPortalResponse, error) {
 	klog.V(4).Infof("calling DiscoverTargetPortal with portal %s:%d", request.TargetPortal.TargetAddress, request.TargetPortal.TargetPort)
 	response := &internal.DiscoverTargetPortalResponse{}
-	iqns, err := s.hostAPI.DiscoverTargetPortal(s.requestTPtoAPITP(request.TargetPortal))
+	iqns, err := s.hostAPI.DiscoverTargetPortal(context, s.requestTPtoAPITP(request.TargetPortal))
 	if err != nil {
 		klog.Errorf("failed DiscoverTargetPortal %v", err)
 		return response, err
@@ -120,7 +119,7 @@ func (s *Server) GetTargetDisks(context context.Context, request *internal.GetTa
 	klog.V(4).Infof("calling GetTargetDisks with portal %s:%d and iqn %s",
 		request.TargetPortal.TargetAddress, request.TargetPortal.TargetPort, request.Iqn)
 	response := &internal.GetTargetDisksResponse{}
-	disks, err := s.hostAPI.GetTargetDisks(s.requestTPtoAPITP(request.TargetPortal), request.Iqn)
+	disks, err := s.hostAPI.GetTargetDisks(context, s.requestTPtoAPITP(request.TargetPortal), request.Iqn)
 	if err != nil {
 		klog.Errorf("failed GetTargetDisks %v", err)
 		return response, err
@@ -139,7 +138,7 @@ func (s *Server) GetTargetDisks(context context.Context, request *internal.GetTa
 func (s *Server) ListTargetPortals(context context.Context, request *internal.ListTargetPortalsRequest, version apiversion.Version) (*internal.ListTargetPortalsResponse, error) {
 	klog.V(4).Infof("calling ListTargetPortals")
 	response := &internal.ListTargetPortalsResponse{}
-	portals, err := s.hostAPI.ListTargetPortals()
+	portals, err := s.hostAPI.ListTargetPortals(context)
 	if err != nil {
 		klog.Errorf("failed ListTargetPortals %v", err)
 		return response, err
@@ -161,7 +160,7 @@ func (s *Server) ListTargetPortals(context context.Context, request *internal.Li
 func (s *Server) RemoveTargetPortal(context context.Context, request *internal.RemoveTargetPortalRequest, version apiversion.Version) (*internal.RemoveTargetPortalResponse, error) {
 	klog.V(4).Infof("calling RemoveTargetPortal with portal %s:%d", request.TargetPortal.TargetAddress, request.TargetPortal.TargetPort)
 	response := &internal.RemoveTargetPortalResponse{}
-	err := s.hostAPI.RemoveTargetPortal(s.requestTPtoAPITP(request.TargetPortal))
+	err := s.hostAPI.RemoveTargetPortal(context, s.requestTPtoAPITP(request.TargetPortal))
 	if err != nil {
 		klog.Errorf("failed RemoveTargetPortal %v", err)
 		return response, err
@@ -179,7 +178,7 @@ func (s *Server) SetMutualChapSecret(context context.Context, request *internal.
 	}
 
 	response := &internal.SetMutualChapSecretResponse{}
-	err := s.hostAPI.SetMutualChapSecret(request.MutualChapSecret)
+	err := s.hostAPI.SetMutualChapSecret(context, request.MutualChapSecret)
 	if err != nil {
 		klog.Errorf("failed SetMutualChapSecret %v", err)
 		return response, err

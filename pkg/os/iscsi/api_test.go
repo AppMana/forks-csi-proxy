@@ -1,6 +1,7 @@
 package iscsi
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -13,13 +14,14 @@ func TestConnectTargetIsIdempotent(t *testing.T) {
 
 	var command string
 	var environment []string
-	runPowershellCmd = func(cmd string, envs ...string) ([]byte, error) {
+	runPowershellCmd = func(_ context.Context, cmd string, envs ...string) ([]byte, error) {
 		command = cmd
 		environment = append([]string(nil), envs...)
 		return nil, nil
 	}
 
 	err := (APIImplementor{}).ConnectTarget(
+		context.Background(),
 		&TargetPortal{Address: "192.0.2.10", Port: 3261},
 		"iqn.2026-07.io.longhorn:test", "NONE", "", "",
 	)
@@ -43,12 +45,13 @@ func TestConnectTargetKeepsChapInsideConditional(t *testing.T) {
 	t.Cleanup(func() { runPowershellCmd = original })
 
 	var command string
-	runPowershellCmd = func(cmd string, _ ...string) ([]byte, error) {
+	runPowershellCmd = func(_ context.Context, cmd string, _ ...string) ([]byte, error) {
 		command = cmd
 		return nil, nil
 	}
 
 	err := (APIImplementor{}).ConnectTarget(
+		context.Background(),
 		&TargetPortal{Address: "192.0.2.10", Port: 3260},
 		"iqn.2026-07.io.longhorn:chap", "ONEWAYCHAP", "user", "secret",
 	)
