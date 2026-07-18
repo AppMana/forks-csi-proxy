@@ -14,6 +14,8 @@ import (
 
 type APIImplementor struct{}
 
+var runPowershellCmd = utils.RunPowershellCmd
+
 func New() APIImplementor {
 	return APIImplementor{}
 }
@@ -96,8 +98,15 @@ func (APIImplementor) ConnectTarget(portal *TargetPortal, iqn string,
 	// Not using InputObject as Connect-IscsiTarget's InputObject does not work.
 	// This is due to being a static WMI method together with a bug in the
 	// powershell version of the API.
+	// A CSI NodeStageVolume call may be retried after its caller's context has
+	// expired while Connect-IscsiTarget is still completing on the host. Windows
+	// reports an error (and can take minutes to do so) if the retry attempts to
+	// connect an IQN that is already connected. Treat the connected state as
+	// success so the operation is idempotent, as CSI requires.
 	cmdLine := fmt.Sprintf(
-		`Connect-IscsiTarget -TargetPortalAddress ${Env:iscsi_tp_address}` +
+		`$connected = @(Get-IscsiTarget -NodeAddress ${Env:iscsi_target_iqn} ` +
+			`-ErrorAction SilentlyContinue | Where-Object { $_.IsConnected }); ` +
+			`if ($connected.Count -eq 0) { Connect-IscsiTarget -TargetPortalAddress ${Env:iscsi_tp_address}` +
 			` -TargetPortalPortNumber ${Env:iscsi_tp_port} -NodeAddress ${Env:iscsi_target_iqn}` +
 			` -AuthenticationType ${Env:iscsi_auth_type}`)
 
@@ -108,8 +117,9 @@ func (APIImplementor) ConnectTarget(portal *TargetPortal, iqn string,
 	if chapSecret != "" {
 		cmdLine += ` -ChapSecret ${Env:iscsi_chap_secret}`
 	}
+	cmdLine += ` | Out-Null }`
 
-	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
+	out, err := runPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port),
 		fmt.Sprintf("iscsi_target_iqn=%s", iqn),
 		fmt.Sprintf("iscsi_auth_type=%s", authType),
