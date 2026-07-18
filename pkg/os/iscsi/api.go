@@ -20,8 +20,12 @@ func New() APIImplementor {
 
 func (APIImplementor) AddTargetPortal(portal *TargetPortal) error {
 	cmdLine := fmt.Sprintf(
-		`New-IscsiTargetPortal -TargetPortalAddress ${Env:iscsi_tp_address} ` +
-			`-TargetPortalPortNumber ${Env:iscsi_tp_port}`)
+		`$portal = Get-IscsiTargetPortal -TargetPortalAddress ${Env:iscsi_tp_address} ` +
+			`-TargetPortalPortNumber ${Env:iscsi_tp_port} -ErrorAction SilentlyContinue; ` +
+			`if ($null -eq $portal) { ` +
+			`New-IscsiTargetPortal -TargetPortalAddress ${Env:iscsi_tp_address} ` +
+			`-TargetPortalPortNumber ${Env:iscsi_tp_port} | Out-Null ` +
+			`} else { $portal | Update-IscsiTargetPortal | Out-Null }`)
 	out, err := utils.RunPowershellCmd(cmdLine, fmt.Sprintf("iscsi_tp_address=%s", portal.Address),
 		fmt.Sprintf("iscsi_tp_port=%d", portal.Port))
 	if err != nil {
